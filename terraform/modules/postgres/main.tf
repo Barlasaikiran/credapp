@@ -25,7 +25,7 @@ resource "azurerm_postgresql_flexible_server" "this" {
   administrator_password = random_password.admin.result
 
   # Server size and storage (fixed for Phase 1)
-  sku_name              = "standard_b16pls_v2"
+  sku_name              = "B_Standard_B2ms"
   storage_mb            = 32768
   backup_retention_days = 7
 
