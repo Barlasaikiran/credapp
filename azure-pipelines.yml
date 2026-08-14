@@ -388,6 +388,12 @@ stages:
     # running it again on every deploy never touches real data created
     # through the live app - only ever matters on a genuinely fresh DB.
     #########################################################
+   
+
+        #########################################################
+    # Database Schema Job - Jobs are immutable, so delete any previous
+    # run before re-applying.
+    #########################################################
     - task: AzureCLI@2
       displayName: Run Database Schema Job
       inputs:
@@ -396,57 +402,31 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -e
+
           kubectl create configmap db-schema \
             --namespace $(k8sNamespace) \
             --from-file=schema.sql=schema.sql \
             --dry-run=client -o yaml | kubectl apply -f -
 
+          # Delete old job if it exists
+          kubectl delete job db-schema-init \
+            --namespace $(k8sNamespace) \
+            --ignore-not-found=true
+
+          # Create the schema initialization job
+          kubectl apply -f k8s/postgres/schema-init-job.yml
 
           echo "Waiting for database schema job..."
 
-          if kubectl wait \
-              --for=condition=complete \
-              job/db-schema-init \
-              -n $(k8sNamespace) \
-              --timeout=120s
-          then
-              echo "Job completed successfully."
-          else
-              echo "ERROR: Job did not complete within 120 seconds."
+          kubectl wait \
+            --for=condition=complete \
+            job/db-schema-init \
+            --namespace $(k8sNamespace) \
+            --timeout=300s
 
-              echo "========== JOB STATUS =========="
-              kubectl get job db-schema-init -n $(k8sNamespace) -o wide
-
-              echo "========== JOB DESCRIPTION =========="
-              kubectl describe job db-schema-init -n $(k8sNamespace)
-
-              echo "========== POD STATUS =========="
-              kubectl get pods \
-                -n $(k8sNamespace) \
-                -l job-name=db-schema-init \
-                -o wide
-
-              echo "========== POD DESCRIPTION =========="
-              kubectl describe pods \
-                -n $(k8sNamespace) \
-                -l job-name=db-schema-init
-
-              echo "========== EVENTS =========="
-              kubectl get events \
-                -n $(k8sNamespace) \
-                --sort-by=.lastTimestamp
-
-              echo "========== POD LOGS =========="
-              kubectl logs \
-                -n $(k8sNamespace) \
-                -l job-name=db-schema-init \
-                --all-containers=true \
-                --tail=200
-
-              exit 1
-          fi
-
-
+          echo "========== JOB LOGS =========="
+          kubectl logs job/db-schema-init \
+            --namespace $(k8sNamespace)
     #########################################################
     # User Service - Rolling Update (unchanged strategy)
     #########################################################
@@ -523,7 +503,7 @@ stages:
           fi
 
           echo "Current active color : $CURRENT_COLOR"
-          echo "Deploying new version to : $NEW_COLOR"
+          echo "Deploying new version to : $NEW_COLOR"-
 
           kubectl rollout restart deployment/frontend-$NEW_COLOR -n $(k8sNamespace)
           kubectl rollout status deployment/frontend-$NEW_COLOR -n $(k8sNamespace) --timeout=180s
