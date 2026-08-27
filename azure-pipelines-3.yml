@@ -47,8 +47,8 @@ variables:
 
   # AKS cluster - deterministic names from terraform/main.tf's
   # name_prefix = "credpay" (rg-credpay / aks-credpay)
-  aksResourceGroup: 'rg-credpays2'
-  aksClusterName: 'aks-credpays2'
+  aksResourceGroup: 'rg-credpays23'
+  aksClusterName: 'aks-credpays23'
   k8sNamespace: 'credpay'
 
   # Azure Key Vault - created out-of-band (like the ACR), in the CredProj
