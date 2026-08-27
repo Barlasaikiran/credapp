@@ -410,6 +410,19 @@ stages:
     #########################################################
     # User Service - Rolling Update (unchanged strategy)
     #########################################################
+    # - task: AzureCLI@2
+    #   displayName: Deploy User Service
+    #   inputs:
+    #     azureSubscription: $(azureServiceConnection)
+    #     scriptType: bash
+    #     scriptLocation: inlineScript
+    #     inlineScript: |
+    #       set -e
+    #       kubectl apply -f k8s/user-service/
+    #       kubectl rollout restart deployment/user-service -n $(k8sNamespace)
+    #       kubectl rollout status deployment/user-service -n $(k8sNamespace) --timeout=180s
+    #       kubectl get pods -n $(k8sNamespace) -l app.kubernetes.io/name=user-service
+
     - task: AzureCLI@2
       displayName: Deploy User Service
       inputs:
@@ -417,11 +430,40 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -e
+          set -euxo pipefail
+
+          echo "===== Azure Account ====="
+          az account show
+
+          echo "===== Kubernetes Context ====="
+          kubectl config current-context
+
+          echo "===== AKS Nodes ====="
+          kubectl get nodes
+
+          echo "===== Namespace ====="
+          kubectl get namespace $(k8sNamespace)
+
+          echo "===== User Service Files ====="
+          pwd
+          ls -la k8s/user-service/
+
+          echo "===== Applying User Service ====="
           kubectl apply -f k8s/user-service/
+
+          echo "===== Restarting User Service ====="
           kubectl rollout restart deployment/user-service -n $(k8sNamespace)
-          kubectl rollout status deployment/user-service -n $(k8sNamespace) --timeout=180s
-          kubectl get pods -n $(k8sNamespace) -l app.kubernetes.io/name=user-service
+
+          echo "===== Waiting for User Service Rollout ====="
+          kubectl rollout status deployment/user-service \
+            -n $(k8sNamespace) \
+            --timeout=180s
+
+          echo "===== User Service Pods ====="
+          kubectl get pods \
+            -n $(k8sNamespace) \
+            -l app.kubernetes.io/name=user-service \
+            -o wide
 
     #########################################################
     # Payment Service - Rolling Update (unchanged strategy)
